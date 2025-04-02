@@ -253,14 +253,71 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // For now, we'll just return the processed text as a DOCX file
       const text = document.processedText || document.originalText;
       
-      // Create a simple DOCX file with the text
-      const docxContent = await processDocument(text, document.formattingOptions);
-      
-      // Set headers for file download
-      res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
-      res.setHeader("Content-Disposition", `attachment; filename="${document.fileName.replace(/\.[^/.]+$/, "")}_processed.docx"`);
-      
-      return res.send(docxContent);
+      // Get the format from query parameters, default to docx
+      const format = req.query.format as string || 'docx';
+
+      if (format === 'html') {
+        // Generate HTML version of the document
+        let htmlContent = `<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${document.fileName}</title>
+    <style>
+        body {
+            font-family: 'Times New Roman', Times, serif;
+            font-size: 14pt;
+            line-height: 1.5;
+            margin: 2cm;
+        }
+        h1, h2, h3 {
+            font-weight: bold;
+        }
+        h1 {
+            font-size: 16pt;
+            text-align: center;
+        }
+        h2 {
+            font-size: 14pt;
+            margin-top: 1.5em;
+        }
+        p {
+            text-indent: 1.25cm;
+            margin-bottom: 0.5em;
+            text-align: justify;
+        }
+        .page-break {
+            page-break-after: always;
+        }
+        @media print {
+            body {
+                margin: 0;
+                padding: 2cm;
+            }
+        }
+    </style>
+</head>
+<body>
+    ${text.split('\n').map(line => `<p>${line}</p>`).join('\n')}
+</body>
+</html>`;
+        
+        // Set headers for HTML download
+        res.setHeader("Content-Type", "text/html");
+        res.setHeader("Content-Disposition", `attachment; filename="${document.fileName.replace(/\.[^/.]+$/, "")}_processed.html"`);
+        
+        return res.send(htmlContent);
+      } else {
+        // Create a simple DOCX file with the text
+        const docxContent = await processDocument(text, document.formattingOptions);
+        
+        // Set headers for file download
+        res.setHeader("Content-Type", "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
+        res.setHeader("Content-Disposition", `attachment; filename="${document.fileName.replace(/\.[^/.]+$/, "")}_processed.docx"`);
+        
+        return res.send(docxContent);
+      }
     } catch (error) {
       console.error("Error downloading document:", error);
       return res.status(500).json({ error: error instanceof Error ? error.message : "Ошибка при скачивании документа" });
