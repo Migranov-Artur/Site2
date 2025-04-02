@@ -3,10 +3,11 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle, CheckCircle, Download, RefreshCw } from "lucide-react";
+import { AlertCircle, CheckCircle, Download, RefreshCw, FileType } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 interface AnalysisResult {
   original: string;
@@ -36,6 +37,7 @@ export default function AnalysisResults({
   const [activeTab, setActiveTab] = useState("grammar");
   const [isApplying, setIsApplying] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [exportFormat, setExportFormat] = useState("docx");
   const { toast } = useToast();
 
   if (!results) {
@@ -81,7 +83,8 @@ export default function AnalysisResults({
     setIsDownloading(true);
     
     try {
-      const response = await fetch(`/api/documents/${documentId}/download`, {
+      // Добавляем параметр format в URL
+      const response = await fetch(`/api/documents/${documentId}/download?format=${exportFormat}`, {
         credentials: "include",
       });
       
@@ -92,7 +95,7 @@ export default function AnalysisResults({
       // Get filename from Content-Disposition header or use a default name
       const contentDisposition = response.headers.get("Content-Disposition");
       const filenameMatch = contentDisposition && contentDisposition.match(/filename="(.+)"/);
-      const filename = filenameMatch ? filenameMatch[1] : "document.docx";
+      const filename = filenameMatch ? filenameMatch[1] : `document.${exportFormat}`;
       
       // Create blob from response
       const blob = await response.blob();
@@ -111,7 +114,7 @@ export default function AnalysisResults({
       
       toast({
         title: "Документ скачан",
-        description: "Документ успешно загружен на ваше устройство",
+        description: `Документ успешно загружен в формате ${exportFormat.toUpperCase()}`,
       });
       
       if (onDownload) {
@@ -273,8 +276,27 @@ export default function AnalysisResults({
             </TabsContent>
           </Tabs>
 
+          {/* Format selector */}
+          <div className="mt-6 mb-2">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <FileType className="h-4 w-4 text-slate-500" />
+                <span className="text-sm font-medium text-slate-700">Формат экспорта:</span>
+              </div>
+              <Select value={exportFormat} onValueChange={setExportFormat}>
+                <SelectTrigger className="w-36">
+                  <SelectValue placeholder="Выберите формат" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="docx">DOCX</SelectItem>
+                  <SelectItem value="html">HTML</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           {/* Action buttons */}
-          <div className="mt-8 flex flex-col sm:flex-row gap-4">
+          <div className="mt-4 flex flex-col sm:flex-row gap-4">
             <Button
               onClick={handleApplyChanges}
               className="flex-1"
@@ -303,7 +325,7 @@ export default function AnalysisResults({
               ) : (
                 <>
                   <Download className="mr-2 h-4 w-4" />
-                  Скачать документ
+                  Скачать документ ({exportFormat.toUpperCase()})
                 </>
               )}
             </Button>
