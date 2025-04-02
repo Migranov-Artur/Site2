@@ -1,0 +1,31 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply font-sans antialiased bg-[#F8FAFC] text-[#1E293B];
+  }
+
+  /* Neomorphic shadow classes */
+  .shadow-neomorphic {
+    box-shadow: 8px 8px 16px #d1d9e6, -8px -8px 16px #ffffff;
+  }
+  
+  .shadow-neomorphic-sm {
+    box-shadow: 5px 5px 10px #d1d9e6, -5px -5px 10px #ffffff;
+  }
+  
+  .shadow-neomorphic-inset {
+    box-shadow: inset 5px 5px 10px #d1d9e6, inset -5px -5px 10px #ffffff;
+  }
+
+  /* Gradient background for hero section */
+  .bg-hero-gradient {
+    background: linear-gradient(135deg, hsl(222, 47%, 30%) 0%, hsl(222, 47%, 20%) 100%);
+  }
+}
