@@ -257,13 +257,13 @@ export async function improveText(originalText: string, analysisResults: Documen
     return originalText;
   }
 
-  // If OpenAI API key is not available, apply replacements with more care
-  if (!openai) {
-    console.log("OpenAI API key not found, using direct text improvement");
-    let improvedText = originalText;
+  // Функция для прямого применения исправлений к тексту
+  const directTextImprovement = (text: string, improvements: Array<{original: string, improved: string}>) => {
+    console.log(`Applying direct text improvements, ${improvements.length} changes to make`);
+    let improvedText = text;
     
     // Sort improvements by length (descending) to avoid partial replacements
-    const sortedImprovements = [...allImprovements].sort(
+    const sortedImprovements = [...improvements].sort(
       (a, b) => b.original.length - a.original.length
     );
     
@@ -291,6 +291,12 @@ export async function improveText(originalText: string, analysisResults: Documen
     }
     
     return improvedText;
+  };
+
+  // Если OpenAI API ключ отсутствует или возникла ошибка квоты, используем прямое применение исправлений
+  if (!openai) {
+    console.log("OpenAI API key not found, using direct text improvement");
+    return directTextImprovement(originalText, allImprovements);
   }
 
   try {
@@ -309,10 +315,21 @@ export async function improveText(originalText: string, analysisResults: Documen
       messages: [{ role: "user", content: prompt }],
     });
 
-    return response.choices[0].message.content || originalText;
+    const improvedText = response.choices[0].message.content || "";
+    
+    // Проверяем, что OpenAI вернул непустой результат
+    if (improvedText && improvedText.length > 0) {
+      return improvedText;
+    } else {
+      console.log("OpenAI returned empty result, falling back to direct text improvement");
+      return directTextImprovement(originalText, allImprovements);
+    }
   } catch (error) {
     console.error("Error improving text with OpenAI:", error);
-    return originalText; // Return original text if improvement fails
+    
+    // При любой ошибке OpenAI (включая ошибки квоты) используем прямое применение исправлений
+    console.log("Falling back to direct text improvement");
+    return directTextImprovement(originalText, allImprovements);
   }
 }
 
@@ -320,10 +337,42 @@ export async function improveText(originalText: string, analysisResults: Documen
  * Format text according to GOST standards
  */
 export async function formatAccordingToGost(text: string, gostType: string): Promise<string> {
-  // If OpenAI API key is not available, return original text with mock header
+  // Функция для базового форматирования без OpenAI
+  const applyBasicFormatting = (originalText: string, formatType: string) => {
+    console.log(`Applying basic GOST formatting (${formatType})`);
+    
+    // Добавляем стандартный заголовок
+    let formatted = `Отформатировано по стандарту ${formatType}\n\n`;
+    
+    // Разбиваем текст на абзацы
+    const paragraphs = originalText.split(/\n\s*\n/);
+    
+    // Обрабатываем каждый абзац
+    for (let i = 0; i < paragraphs.length; i++) {
+      const paragraph = paragraphs[i].trim();
+      
+      // Пропускаем пустые абзацы
+      if (!paragraph) continue;
+      
+      // Базовое форматирование отступов и пробелов
+      let formattedParagraph = paragraph
+        // Исправляем множественные пробелы
+        .replace(/\s+/g, ' ')
+        // Добавляем пробел после точки, запятой, двоеточия и др.
+        .replace(/([.,;:!?])([а-яА-ЯёЁa-zA-Z])/g, '$1 $2')
+        .trim();
+      
+      // Добавляем абзац с отступом
+      formatted += formattedParagraph + '\n\n';
+    }
+    
+    return formatted.trim();
+  };
+
+  // If OpenAI API key is not available, apply basic formatting
   if (!openai) {
-    console.log("OpenAI API key not found, using mock GOST formatting");
-    return `Отформатировано по стандарту ${gostType}\n\n${text}`;
+    console.log("OpenAI API key not found, using basic GOST formatting");
+    return applyBasicFormatting(text, gostType);
   }
 
   try {
@@ -346,9 +395,16 @@ export async function formatAccordingToGost(text: string, gostType: string): Pro
       messages: [{ role: "user", content: prompt }],
     });
 
-    return response.choices[0].message.content || text;
+    const formattedText = response.choices[0].message.content;
+    if (formattedText && formattedText.length > 0) {
+      return formattedText;
+    } else {
+      console.log("OpenAI returned empty result, falling back to basic formatting");
+      return applyBasicFormatting(text, gostType);
+    }
   } catch (error) {
     console.error("Error formatting text with OpenAI:", error);
-    return text; // Return original text if formatting fails
+    console.log("Falling back to basic GOST formatting");
+    return applyBasicFormatting(text, gostType);
   }
 }
