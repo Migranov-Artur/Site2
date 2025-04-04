@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import languageToolBridge from "./language-tool-bridge";
 
 // Define the types locally to avoid circular dependencies
 export interface AnalysisResult {
@@ -66,30 +67,73 @@ const mockAnalysisResults: DocumentAnalysisResults = {
 };
 
 /**
- * Analyze text using OpenAI to find grammar, style, and structure issues
+ * Analyze text using LanguageTool and OpenAI to find grammar, style, and structure issues
  */
 export async function analyzeText(text: string): Promise<DocumentAnalysisResults> {
-  // If OpenAI API key is not available, return mock data
-  if (!openai) {
-    console.log("OpenAI API key not found, using mock data");
-    // Add some text content to the mock data for demo
-    if (text.length > 20) {
-      mockAnalysisResults.grammar.push({
-        original: text.substring(0, 20) + "...",
-        improved: text.substring(0, 10) + " [улучшено] " + text.substring(10, 20) + "...",
-        explanation: "Демонстрационная версия улучшения текста",
-        severity: "medium"
-      });
+  // Подготовка результатов
+  let results: DocumentAnalysisResults = {
+    grammar: [],
+    style: [],
+    structure: [],
+    summary: ""
+  };
+  
+  // Шаг 1: Используем LanguageTool для проверки грамматики
+  try {
+    console.log("Checking grammar with LanguageTool...");
+    const languageToolResults = await languageToolBridge.checkText(text);
+    
+    if (languageToolResults && languageToolResults.length > 0) {
+      // Добавляем результаты LanguageTool в категорию "grammar"
+      results.grammar = languageToolResults;
     }
-    return mockAnalysisResults;
+  } catch (error) {
+    console.error("Error using LanguageTool:", error);
+    // В случае ошибки продолжаем работу, но без результатов LanguageTool
+  }
+  
+  // Шаг 2: Если OpenAI доступен, дополняем анализ с его помощью
+  if (!openai) {
+    console.log("OpenAI API key not found, using only LanguageTool results");
+    
+    // Если LanguageTool не дал результатов, используем моковые данные
+    if (results.grammar.length === 0) {
+      console.log("No LanguageTool results, using mock data");
+      results = { ...mockAnalysisResults };
+      
+      // Добавляем фрагмент текста для демонстрации
+      if (text.length > 20) {
+        results.grammar.push({
+          original: text.substring(0, 20) + "...",
+          improved: text.substring(0, 10) + " [улучшено] " + text.substring(10, 20) + "...",
+          explanation: "Демонстрационная версия улучшения текста",
+          severity: "medium"
+        });
+      }
+    } else {
+      // Добавляем базовое заключение
+      results.summary = "Текст проверен с помощью инструмента LanguageTool. Найдены грамматические ошибки и стилистические неточности, которые рекомендуется исправить.";
+    }
+    
+    return results;
   }
 
   try {
+    console.log("Enhancing analysis with OpenAI...");
+    // Передаем уже найденные LanguageTool ошибки в OpenAI для дополнения анализа
+    const existingGrammarIssues = results.grammar.map(issue => 
+      `- "${issue.original}" → "${issue.improved}" (${issue.explanation})`
+    ).join('\n');
+    
     const prompt = `
-      Проанализируй следующий академический текст на русском языке. Идентифицируй проблемы в трех категориях:
-      1. Грамматика: ошибки грамматики, пунктуации, орфографии
-      2. Стиль: неформальный язык, повторения, многословие
-      3. Структура: проблемы с логикой, связностью, организацией текста
+      Проанализируй следующий академический текст на русском языке. 
+      
+      Текст уже был проверен инструментом LanguageTool, который нашел следующие грамматические проблемы:
+      ${existingGrammarIssues || "Грамматических ошибок не обнаружено."}
+      
+      Теперь дополни анализ, сосредоточившись на:
+      1. Стиль: неформальный язык, повторения, многословие
+      2. Структура: проблемы с логикой, связностью, организацией текста
       
       Для каждой проблемы укажи:
       - Оригинальный фрагмент текста
@@ -101,7 +145,7 @@ export async function analyzeText(text: string): Promise<DocumentAnalysisResults
       
       Ответ должен быть в формате JSON со следующей структурой:
       {
-        "grammar": [
+        "style": [
           {
             "original": "...",
             "improved": "...",
@@ -109,12 +153,11 @@ export async function analyzeText(text: string): Promise<DocumentAnalysisResults
             "severity": "low|medium|high"
           }
         ],
-        "style": [аналогично],
         "structure": [аналогично],
         "summary": "общая оценка текста"
       }
       
-      Текст: ${text.substring(0, 4000)}
+      Текст для анализа: ${text.substring(0, 4000)}
     `;
 
     const response = await openai.chat.completions.create({
@@ -123,12 +166,26 @@ export async function analyzeText(text: string): Promise<DocumentAnalysisResults
       response_format: { type: "json_object" },
     });
 
-    const content = response.choices[0].message.content || '{"grammar":[],"style":[],"structure":[],"summary":"Не удалось выполнить анализ текста."}';
-    const result = JSON.parse(content);
-    return result as DocumentAnalysisResults;
+    const content = response.choices[0].message.content || '{"style":[],"structure":[],"summary":"Не удалось выполнить анализ текста."}';
+    const openAIResults = JSON.parse(content);
+    
+    // Объединяем результаты LanguageTool и OpenAI
+    return {
+      grammar: results.grammar, // Используем результаты от LanguageTool
+      style: openAIResults.style || [],
+      structure: openAIResults.structure || [],
+      summary: openAIResults.summary || "Текст проанализирован с помощью LanguageTool и OpenAI."
+    };
   } catch (error) {
     console.error("Error analyzing text with OpenAI:", error);
-    // Return a default empty structure if analysis fails
+    
+    // Если анализ с OpenAI не удался, но есть результаты от LanguageTool, вернем их
+    if (results.grammar.length > 0) {
+      results.summary = "Текст проверен с помощью инструмента LanguageTool. Найдены грамматические ошибки, которые рекомендуется исправить.";
+      return results;
+    }
+    
+    // Иначе вернем структуру с сообщением об ошибке
     return {
       grammar: [],
       style: [],
