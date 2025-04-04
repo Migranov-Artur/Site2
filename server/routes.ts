@@ -214,13 +214,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Сначала необходимо проанализировать документ" });
       }
 
+      console.log(`Applying changes to document ${documentId}. Analysis results:`, {
+        grammarIssues: document.analysisResults.grammar.length,
+        styleIssues: document.analysisResults.style.length,
+        structureIssues: document.analysisResults.structure.length
+      });
+
       // Improve text using OpenAI based on analysis results
       const improvedText = await improveText(document.originalText, document.analysisResults);
+      
+      // Log improvement result
+      console.log(`Text improvement completed:`, {
+        originalLength: document.originalText.length,
+        improvedLength: improvedText.length,
+        hasChanges: improvedText !== document.originalText
+      });
 
       // Update document with improved text
-      await storage.updateDocumentText(documentId, improvedText);
+      const updatedDoc = await storage.updateDocumentText(documentId, improvedText);
+      
+      // Verify the update was successful
+      if (!updatedDoc || !updatedDoc.processedText) {
+        console.error("Document update failed - processedText is empty after update");
+        return res.status(500).json({ error: "Не удалось сохранить улучшенный текст" });
+      }
 
-      return res.json({ success: true });
+      return res.json({ 
+        success: true,
+        improved: improvedText !== document.originalText
+      });
     } catch (error) {
       console.error("Error applying changes:", error);
       return res.status(500).json({ error: error instanceof Error ? error.message : "Ошибка при применении изменений" });
@@ -293,6 +315,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!document) {
         return res.status(404).json({ error: "Документ не найден" });
       }
+
+      // Log document details for debugging
+      console.log("Document download request:", {
+        id: document.id,
+        hasProcessedText: !!document.processedText,
+        originalTextLength: document.originalText?.length || 0,
+        processedTextLength: document.processedText?.length || 0
+      });
 
       // In a real implementation, this would generate a properly formatted document
       // For now, we'll just return the processed text as a DOCX file
