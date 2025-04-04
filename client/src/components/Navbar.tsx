@@ -23,20 +23,14 @@ export default function Navbar() {
               </h1>
             </div>
             <div className="hidden sm:ml-6 sm:flex sm:items-center sm:space-x-4">
-              <Link href="/analysis">
-                <a className="text-slate-600 hover:text-primary-600 px-3 py-2 text-sm font-medium">
-                  Загрузить файл
-                </a>
+              <Link href="/analysis" className="text-slate-600 hover:text-primary-600 px-3 py-2 text-sm font-medium">
+                Загрузить файл
               </Link>
-              <Link href="/text-check">
-                <a className="text-slate-600 hover:text-primary-600 px-3 py-2 text-sm font-medium">
-                  Проверить текст
-                </a>
+              <Link href="/text-check" className="text-slate-600 hover:text-primary-600 px-3 py-2 text-sm font-medium">
+                Проверить текст
               </Link>
-              <Link href="/about">
-                <a className="text-slate-600 hover:text-primary-600 px-3 py-2 text-sm font-medium">
-                  О сервисе
-                </a>
+              <Link href="/about" className="text-slate-600 hover:text-primary-600 px-3 py-2 text-sm font-medium">
+                О сервисе
               </Link>
             </div>
           </div>
@@ -63,20 +57,14 @@ export default function Navbar() {
                 Переоформляшка
               </h2>
             </div>
-            <Link href="/analysis">
-              <a className="block px-4 py-2 text-base font-medium text-slate-600 hover:text-primary-600 hover:bg-slate-50">
-                Загрузить файл
-              </a>
+            <Link href="/analysis" className="block px-4 py-2 text-base font-medium text-slate-600 hover:text-primary-600 hover:bg-slate-50">
+              Загрузить файл
             </Link>
-            <Link href="/text-check">
-              <a className="block px-4 py-2 text-base font-medium text-slate-600 hover:text-primary-600 hover:bg-slate-50">
-                Проверить текст
-              </a>
+            <Link href="/text-check" className="block px-4 py-2 text-base font-medium text-slate-600 hover:text-primary-600 hover:bg-slate-50">
+              Проверить текст
             </Link>
-            <Link href="/about">
-              <a className="block px-4 py-2 text-base font-medium text-slate-600 hover:text-primary-600 hover:bg-slate-50">
-                О сервисе
-              </a>
+            <Link href="/about" className="block px-4 py-2 text-base font-medium text-slate-600 hover:text-primary-600 hover:bg-slate-50">
+              О сервисе
             </Link>
           </div>
         </div>
