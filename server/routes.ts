@@ -236,6 +236,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Test Language Tool directly from API
+  app.post("/api/test/language-tool", async (req, res) => {
+    try {
+      const { text } = req.body;
+      
+      if (!text || typeof text !== 'string') {
+        return res.status(400).json({ error: "Текст не предоставлен или имеет неверный формат" });
+      }
+      
+      console.log(`Testing LanguageTool with text: "${text}"`);
+      
+      // Проверяем текст через LanguageTool и OpenAI
+      const results = await analyzeText(text);
+      
+      return res.json(results);
+    } catch (error) {
+      console.error("Error testing language tool:", error);
+      return res.status(500).json({ error: error instanceof Error ? error.message : "Ошибка при тестировании языкового анализатора" });
+    }
+  });
+
   // Download document
   app.get("/api/documents/:id/download", async (req, res) => {
     try {
