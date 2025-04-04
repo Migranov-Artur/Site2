@@ -26,7 +26,13 @@ type OpenAIResponse = {
   }>;
 };
 
+// Helper function to escape special regex characters
+function escapeRegExp(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 // Initialize OpenAI client with optional API key
+console.log("OPENAI_API_KEY available:", !!process.env.OPENAI_API_KEY);
 const openai = process.env.OPENAI_API_KEY 
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY }) 
   : null;
@@ -251,15 +257,38 @@ export async function improveText(originalText: string, analysisResults: Documen
     return originalText;
   }
 
-  // If OpenAI API key is not available, apply simple replacements
+  // If OpenAI API key is not available, apply replacements with more care
   if (!openai) {
-    console.log("OpenAI API key not found, using mock improvements");
+    console.log("OpenAI API key not found, using direct text improvement");
     let improvedText = originalText;
     
-    // Simple string replacement for each improvement
-    allImprovements.forEach(imp => {
-      improvedText = improvedText.replace(imp.original, imp.improved);
-    });
+    // Sort improvements by length (descending) to avoid partial replacements
+    const sortedImprovements = [...allImprovements].sort(
+      (a, b) => b.original.length - a.original.length
+    );
+    
+    // For each improvement, replace all occurrences
+    for (const imp of sortedImprovements) {
+      // Create a RegExp that matches the exact string (with word boundaries if possible)
+      try {
+        // Only add word boundaries if the string doesn't start/end with punctuation
+        const startsWithWord = /^\w/.test(imp.original);
+        const endsWithWord = /\w$/.test(imp.original);
+        
+        if (startsWithWord && endsWithWord) {
+          // Can use word boundaries
+          const regex = new RegExp(`\\b${escapeRegExp(imp.original)}\\b`, 'g');
+          improvedText = improvedText.replace(regex, imp.improved);
+        } else {
+          // Simple string replacement as fallback
+          improvedText = improvedText.replace(new RegExp(escapeRegExp(imp.original), 'g'), imp.improved);
+        }
+      } catch (e) {
+        // If regex fails, fall back to simple replacement
+        console.log(`Failed to create regex for: "${imp.original}"`, e);
+        improvedText = improvedText.replace(imp.original, imp.improved);
+      }
+    }
     
     return improvedText;
   }
