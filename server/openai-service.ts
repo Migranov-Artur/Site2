@@ -2,6 +2,9 @@ import OpenAI from "openai";
 import languageToolBridge from "./language-tool-bridge";
 import textlintService from "./textlint-service";
 
+// Экспортируем сервисы для прямого доступа
+export { languageToolBridge, textlintService };
+
 // Define the types locally to avoid circular dependencies
 export interface AnalysisResult {
   original: string;
@@ -243,8 +246,13 @@ export async function analyzeText(text: string): Promise<DocumentAnalysisResults
 
 /**
  * Improve text based on analysis results
+ * 
+ * Применяет исправления, найденные LanguageTool и TextLint, напрямую к тексту,
+ * без использования OpenAI API для повышения производительности и надежности.
  */
 export async function improveText(originalText: string, analysisResults: DocumentAnalysisResults): Promise<string> {
+  console.log("Improving text using direct improvements from LanguageTool and TextLint");
+  
   // Extract all recommended improvements
   const allImprovements = [
     ...analysisResults.grammar.map(item => ({ original: item.original, improved: item.improved })),
@@ -254,157 +262,87 @@ export async function improveText(originalText: string, analysisResults: Documen
 
   // If no improvements needed, return original text
   if (allImprovements.length === 0) {
+    console.log("No improvements needed, returning original text");
     return originalText;
   }
 
-  // Функция для прямого применения исправлений к тексту
-  const directTextImprovement = (text: string, improvements: Array<{original: string, improved: string}>) => {
-    console.log(`Applying direct text improvements, ${improvements.length} changes to make`);
-    let improvedText = text;
-    
-    // Sort improvements by length (descending) to avoid partial replacements
-    const sortedImprovements = [...improvements].sort(
-      (a, b) => b.original.length - a.original.length
-    );
-    
-    // For each improvement, replace all occurrences
-    for (const imp of sortedImprovements) {
-      // Create a RegExp that matches the exact string (with word boundaries if possible)
-      try {
-        // Only add word boundaries if the string doesn't start/end with punctuation
-        const startsWithWord = /^\w/.test(imp.original);
-        const endsWithWord = /\w$/.test(imp.original);
-        
-        if (startsWithWord && endsWithWord) {
-          // Can use word boundaries
-          const regex = new RegExp(`\\b${escapeRegExp(imp.original)}\\b`, 'g');
-          improvedText = improvedText.replace(regex, imp.improved);
-        } else {
-          // Simple string replacement as fallback
-          improvedText = improvedText.replace(new RegExp(escapeRegExp(imp.original), 'g'), imp.improved);
-        }
-      } catch (e) {
-        // If regex fails, fall back to simple replacement
-        console.log(`Failed to create regex for: "${imp.original}"`, e);
-        improvedText = improvedText.replace(imp.original, imp.improved);
+  console.log(`Applying direct text improvements, ${allImprovements.length} changes to make`);
+  let improvedText = originalText;
+  
+  // Sort improvements by length (descending) to avoid partial replacements
+  const sortedImprovements = [...allImprovements].sort(
+    (a, b) => b.original.length - a.original.length
+  );
+  
+  // For each improvement, replace all occurrences
+  for (const imp of sortedImprovements) {
+    // Create a RegExp that matches the exact string (with word boundaries if possible)
+    try {
+      // Only add word boundaries if the string doesn't start/end with punctuation
+      const startsWithWord = /^\w/.test(imp.original);
+      const endsWithWord = /\w$/.test(imp.original);
+      
+      if (startsWithWord && endsWithWord) {
+        // Can use word boundaries
+        const regex = new RegExp(`\\b${escapeRegExp(imp.original)}\\b`, 'g');
+        improvedText = improvedText.replace(regex, imp.improved);
+      } else {
+        // Simple string replacement as fallback
+        improvedText = improvedText.replace(new RegExp(escapeRegExp(imp.original), 'g'), imp.improved);
       }
+    } catch (e) {
+      // If regex fails, fall back to simple replacement
+      console.log(`Failed to create regex for: "${imp.original}"`, e);
+      improvedText = improvedText.replace(imp.original, imp.improved);
     }
-    
-    return improvedText;
-  };
-
-  // Если OpenAI API ключ отсутствует или возникла ошибка квоты, используем прямое применение исправлений
-  if (!openai) {
-    console.log("OpenAI API key not found, using direct text improvement");
-    return directTextImprovement(originalText, allImprovements);
   }
-
-  try {
-    const prompt = `
-      Улучши следующий текст, применив указанные исправления. Список исправлений:
-      ${allImprovements.map(imp => `"${imp.original}" → "${imp.improved}"`).join('\n')}
-      
-      Исходный текст:
-      ${originalText.substring(0, 4000)}
-      
-      Верни только улучшенный текст без объяснений и комментариев.
-    `;
-
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [{ role: "user", content: prompt }],
-    });
-
-    const improvedText = response.choices[0].message.content || "";
-    
-    // Проверяем, что OpenAI вернул непустой результат
-    if (improvedText && improvedText.length > 0) {
-      return improvedText;
-    } else {
-      console.log("OpenAI returned empty result, falling back to direct text improvement");
-      return directTextImprovement(originalText, allImprovements);
-    }
-  } catch (error) {
-    console.error("Error improving text with OpenAI:", error);
-    
-    // При любой ошибке OpenAI (включая ошибки квоты) используем прямое применение исправлений
-    console.log("Falling back to direct text improvement");
-    return directTextImprovement(originalText, allImprovements);
-  }
+  
+  // Проверяем, что текст действительно изменился
+  const hasChanges = improvedText !== originalText;
+  console.log(`Text improvement completed: original length ${originalText.length}, improved length ${improvedText.length}, changes applied: ${hasChanges}`);
+  
+  return improvedText;
 }
 
 /**
  * Format text according to GOST standards
+ * 
+ * Применяет базовое форматирование по стандартам ГОСТ без использования OpenAI API
+ * для повышения производительности и надежности.
  */
 export async function formatAccordingToGost(text: string, gostType: string): Promise<string> {
-  // Функция для базового форматирования без OpenAI
-  const applyBasicFormatting = (originalText: string, formatType: string) => {
-    console.log(`Applying basic GOST formatting (${formatType})`);
+  console.log(`Applying basic GOST formatting (${gostType})`);
+  
+  // Добавляем стандартный заголовок
+  let formatted = `Отформатировано по стандарту ${gostType}\n\n`;
+  
+  // Разбиваем текст на абзацы
+  const paragraphs = text.split(/\n\s*\n/);
+  
+  // Обрабатываем каждый абзац
+  for (let i = 0; i < paragraphs.length; i++) {
+    const paragraph = paragraphs[i].trim();
     
-    // Добавляем стандартный заголовок
-    let formatted = `Отформатировано по стандарту ${formatType}\n\n`;
+    // Пропускаем пустые абзацы
+    if (!paragraph) continue;
     
-    // Разбиваем текст на абзацы
-    const paragraphs = originalText.split(/\n\s*\n/);
+    // Базовое форматирование отступов и пробелов
+    let formattedParagraph = paragraph
+      // Исправляем множественные пробелы
+      .replace(/\s+/g, ' ')
+      // Добавляем пробел после точки, запятой, двоеточия и др.
+      .replace(/([.,;:!?])([а-яА-ЯёЁa-zA-Z])/g, '$1 $2')
+      // Исправляем дефисы на тире там, где нужно
+      .replace(/(\s)-(\s)/g, '$1—$2')
+      .trim();
     
-    // Обрабатываем каждый абзац
-    for (let i = 0; i < paragraphs.length; i++) {
-      const paragraph = paragraphs[i].trim();
-      
-      // Пропускаем пустые абзацы
-      if (!paragraph) continue;
-      
-      // Базовое форматирование отступов и пробелов
-      let formattedParagraph = paragraph
-        // Исправляем множественные пробелы
-        .replace(/\s+/g, ' ')
-        // Добавляем пробел после точки, запятой, двоеточия и др.
-        .replace(/([.,;:!?])([а-яА-ЯёЁa-zA-Z])/g, '$1 $2')
-        .trim();
-      
-      // Добавляем абзац с отступом
-      formatted += formattedParagraph + '\n\n';
-    }
-    
-    return formatted.trim();
-  };
-
-  // If OpenAI API key is not available, apply basic formatting
-  if (!openai) {
-    console.log("OpenAI API key not found, using basic GOST formatting");
-    return applyBasicFormatting(text, gostType);
+    // Добавляем абзац с отступом
+    formatted += formattedParagraph + '\n\n';
   }
-
-  try {
-    const prompt = `
-      Отформатируй следующий текст в соответствии со стандартом ${gostType}.
-      Убедись, что форматирование соответствует всем требованиям данного ГОСТа:
-      - Правильное форматирование заголовков
-      - Корректные отступы и интервалы
-      - Правильное оформление списков
-      - Корректное оформление цитат и ссылок
-      
-      Текст:
-      ${text.substring(0, 4000)}
-      
-      Верни только отформатированный текст без объяснений и комментариев.
-    `;
-
-    const response = await openai.chat.completions.create({
-      model: "gpt-4o",
-      messages: [{ role: "user", content: prompt }],
-    });
-
-    const formattedText = response.choices[0].message.content;
-    if (formattedText && formattedText.length > 0) {
-      return formattedText;
-    } else {
-      console.log("OpenAI returned empty result, falling back to basic formatting");
-      return applyBasicFormatting(text, gostType);
-    }
-  } catch (error) {
-    console.error("Error formatting text with OpenAI:", error);
-    console.log("Falling back to basic GOST formatting");
-    return applyBasicFormatting(text, gostType);
-  }
+  
+  // Проверяем, что текст действительно изменился
+  const hasChanges = formatted.trim() !== text;
+  console.log(`GOST formatting completed: original length ${text.length}, formatted length ${formatted.length}, changes applied: ${hasChanges}`);
+  
+  return formatted.trim();
 }
