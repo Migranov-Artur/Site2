@@ -77,6 +77,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
       return res.status(500).json({ error: error instanceof Error ? error.message : "Ошибка загрузки файла" });
     }
   });
+  
+  // Create document from direct text input (no file upload)
+  app.post("/api/documents", async (req, res) => {
+    try {
+      const { text, fileName, originalType } = req.body;
+      
+      if (!text || typeof text !== 'string') {
+        return res.status(400).json({ error: "Текст не предоставлен или имеет неверный формат" });
+      }
+      
+      // Create document in storage
+      const document = await storage.createDocument({
+        fileName: fileName || "text_input.txt",
+        originalText: text,
+        originalType: originalType || "text/plain",
+        createdAt: new Date().toISOString(),
+      });
+      
+      return res.status(200).json(document);
+    } catch (error) {
+      console.error("Error creating document from text:", error);
+      return res.status(500).json({ error: error instanceof Error ? error.message : "Ошибка создания документа из текста" });
+    }
+  });
 
   // Get all documents
   app.get("/api/documents", async (req, res) => {
@@ -129,7 +153,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         grammar: z.boolean().optional().default(true),
       });
 
-      const options = optionsSchema.parse(req.body.options);
+      const options = optionsSchema.parse(req.body);
 
       // Process text based on selected options
       let analysisResults = null;

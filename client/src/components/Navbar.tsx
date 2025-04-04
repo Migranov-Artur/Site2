@@ -22,6 +22,23 @@ export default function Navbar() {
                 Переоформляшка
               </h1>
             </div>
+            <div className="hidden sm:ml-6 sm:flex sm:items-center sm:space-x-4">
+              <Link href="/analysis">
+                <a className="text-slate-600 hover:text-primary-600 px-3 py-2 text-sm font-medium">
+                  Загрузить файл
+                </a>
+              </Link>
+              <Link href="/text-check">
+                <a className="text-slate-600 hover:text-primary-600 px-3 py-2 text-sm font-medium">
+                  Проверить текст
+                </a>
+              </Link>
+              <Link href="/about">
+                <a className="text-slate-600 hover:text-primary-600 px-3 py-2 text-sm font-medium">
+                  О сервисе
+                </a>
+              </Link>
+            </div>
           </div>
           <div className="-mr-2 flex items-center sm:hidden">
             <Button
@@ -46,6 +63,21 @@ export default function Navbar() {
                 Переоформляшка
               </h2>
             </div>
+            <Link href="/analysis">
+              <a className="block px-4 py-2 text-base font-medium text-slate-600 hover:text-primary-600 hover:bg-slate-50">
+                Загрузить файл
+              </a>
+            </Link>
+            <Link href="/text-check">
+              <a className="block px-4 py-2 text-base font-medium text-slate-600 hover:text-primary-600 hover:bg-slate-50">
+                Проверить текст
+              </a>
+            </Link>
+            <Link href="/about">
+              <a className="block px-4 py-2 text-base font-medium text-slate-600 hover:text-primary-600 hover:bg-slate-50">
+                О сервисе
+              </a>
+            </Link>
           </div>
         </div>
       )}
