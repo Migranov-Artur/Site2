@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import languageToolBridge from "./language-tool-bridge";
+import textlintService from "./textlint-service";
 
 // Define the types locally to avoid circular dependencies
 export interface AnalysisResult {
@@ -67,7 +68,7 @@ const mockAnalysisResults: DocumentAnalysisResults = {
 };
 
 /**
- * Analyze text using LanguageTool and OpenAI to find grammar, style, and structure issues
+ * Analyze text using LanguageTool, TextLint and OpenAI to find grammar, style, and structure issues
  */
 export async function analyzeText(text: string): Promise<DocumentAnalysisResults> {
   // Подготовка результатов
@@ -92,13 +93,42 @@ export async function analyzeText(text: string): Promise<DocumentAnalysisResults
     // В случае ошибки продолжаем работу, но без результатов LanguageTool
   }
   
-  // Шаг 2: Если OpenAI доступен, дополняем анализ с его помощью
-  if (!openai) {
-    console.log("OpenAI API key not found, using only LanguageTool results");
+  // Шаг 2: Используем TextLint для дополнительной проверки
+  try {
+    console.log("Enhancing analysis with TextLint...");
+    const textlintResults = await textlintService.checkText(text);
     
-    // Если LanguageTool не дал результатов, используем моковые данные
-    if (results.grammar.length === 0) {
-      console.log("No LanguageTool results, using mock data");
+    if (textlintResults && textlintResults.length > 0) {
+      // Добавляем результаты TextLint в соответствующие категории
+      for (const result of textlintResults) {
+        // Определяем категорию на основе типа ошибки или предупреждения
+        if (result.explanation.toLowerCase().includes("grammar") || 
+            result.explanation.toLowerCase().includes("spell") || 
+            result.explanation.toLowerCase().includes("грамматик") || 
+            result.explanation.toLowerCase().includes("орфограф")) {
+          results.grammar.push(result);
+        } else if (result.explanation.toLowerCase().includes("style") || 
+                  result.explanation.toLowerCase().includes("write-good") || 
+                  result.explanation.toLowerCase().includes("стил")) {
+          results.style.push(result);
+        } else {
+          // По умолчанию добавляем в стилистику
+          results.style.push(result);
+        }
+      }
+    }
+  } catch (error) {
+    console.error("Error using TextLint:", error);
+    // В случае ошибки продолжаем работу, но без результатов TextLint
+  }
+  
+  // Шаг 3: Если OpenAI доступен, дополняем анализ с его помощью
+  if (!openai) {
+    console.log("OpenAI API key not found, using only LanguageTool and TextLint results");
+    
+    // Если ни один инструмент не дал результатов, используем моковые данные
+    if (results.grammar.length === 0 && results.style.length === 0) {
+      console.log("No analysis results, using mock data");
       results = { ...mockAnalysisResults };
       
       // Добавляем фрагмент текста для демонстрации
@@ -112,7 +142,7 @@ export async function analyzeText(text: string): Promise<DocumentAnalysisResults
       }
     } else {
       // Добавляем базовое заключение
-      results.summary = "Текст проверен с помощью инструмента LanguageTool. Найдены грамматические ошибки и стилистические неточности, которые рекомендуется исправить.";
+      results.summary = "Текст проверен с помощью инструментов LanguageTool и TextLint. Найдены грамматические ошибки и стилистические неточности, которые рекомендуется исправить.";
     }
     
     return results;
@@ -125,14 +155,24 @@ export async function analyzeText(text: string): Promise<DocumentAnalysisResults
       `- "${issue.original}" → "${issue.improved}" (${issue.explanation})`
     ).join('\n');
     
+    // Передаем уже найденные TextLint стилистические проблемы
+    const existingStyleIssues = results.style.map(issue => 
+      `- "${issue.original}" → "${issue.improved}" (${issue.explanation})`
+    ).join('\n');
+    
     const prompt = `
       Проанализируй следующий академический текст на русском языке. 
       
-      Текст уже был проверен инструментом LanguageTool, который нашел следующие грамматические проблемы:
+      Текст уже был проверен инструментами LanguageTool и TextLint, которые нашли следующие проблемы:
+      
+      Грамматические проблемы:
       ${existingGrammarIssues || "Грамматических ошибок не обнаружено."}
       
+      Стилистические проблемы:
+      ${existingStyleIssues || "Стилистических проблем не обнаружено."}
+      
       Теперь дополни анализ, сосредоточившись на:
-      1. Стиль: неформальный язык, повторения, многословие
+      1. Стиль: неформальный язык, повторения, многословие (добавь к уже найденным)
       2. Структура: проблемы с логикой, связностью, организацией текста
       
       Для каждой проблемы укажи:
@@ -169,19 +209,19 @@ export async function analyzeText(text: string): Promise<DocumentAnalysisResults
     const content = response.choices[0].message.content || '{"style":[],"structure":[],"summary":"Не удалось выполнить анализ текста."}';
     const openAIResults = JSON.parse(content);
     
-    // Объединяем результаты LanguageTool и OpenAI
+    // Объединяем результаты LanguageTool, TextLint и OpenAI
     return {
       grammar: results.grammar, // Используем результаты от LanguageTool
-      style: openAIResults.style || [],
+      style: [...results.style, ...(openAIResults.style || [])], // Объединяем стилистические проблемы
       structure: openAIResults.structure || [],
-      summary: openAIResults.summary || "Текст проанализирован с помощью LanguageTool и OpenAI."
+      summary: openAIResults.summary || "Текст проанализирован с помощью LanguageTool, TextLint и OpenAI."
     };
   } catch (error) {
     console.error("Error analyzing text with OpenAI:", error);
     
-    // Если анализ с OpenAI не удался, но есть результаты от LanguageTool, вернем их
-    if (results.grammar.length > 0) {
-      results.summary = "Текст проверен с помощью инструмента LanguageTool. Найдены грамматические ошибки, которые рекомендуется исправить.";
+    // Если анализ с OpenAI не удался, но есть результаты от LanguageTool или TextLint, вернем их
+    if (results.grammar.length > 0 || results.style.length > 0) {
+      results.summary = "Текст проверен с помощью инструментов LanguageTool и TextLint. Найдены грамматические и/или стилистические ошибки, которые рекомендуется исправить.";
       return results;
     }
     

@@ -1,0 +1,28 @@
+{
+  "rules": {
+    "common-misspellings": true,
+    "no-todo": true,
+    "terminology": {
+      "terms": [
+        "JavaScript",
+        "ESLint",
+        "Sass",
+        ["json", "JSON"],
+        ["html", "HTML"],
+        ["Интернет", "интернет", true]
+      ]
+    },
+    "write-good": {
+      "passive": false,
+      "thereIs": false
+    },
+    "no-dead-link": {
+      "checkRelative": true,
+      "baseURI": null,
+      "ignore": ["http://example.com"]
+    },
+    "spelling": {
+      "language": "ru"
+    }
+  }
+}

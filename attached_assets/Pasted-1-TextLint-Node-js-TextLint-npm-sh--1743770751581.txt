@@ -1,0 +1,86 @@
+1. Установка TextLint
+Если сайт на Node.js, установи TextLint через npm:
+
+sh
+Копировать
+Редактировать
+npm install -g textlint
+npm install -g textlint-rule-preset-google
+2. Настройка правил (чтобы он проверял текст по нужным критериям)
+Создай файл .textlintrc в корневой папке проекта и добавь правила:
+
+json
+Копировать
+Редактировать
+{
+  "rules": {
+    "preset-google": true,
+    "no-doubled-conjunctive-particle-ga": true,
+    "no-mix-dearu-desumasu": true
+  }
+}
+💡 preset-google — это предустановленный набор правил от Google. Можно добавить свои.
+
+3. Добавляем TextLint в веб-интерфейс
+Если у тебя сайт на HTML + JavaScript
+Подключи TextLint в index.html:
+
+html
+Копировать
+Редактировать
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Проверка текста</title>
+    <script src="https://cdn.jsdelivr.net/npm/textlint-browser/textlint.min.js"></script>
+</head>
+<body>
+    <textarea id="inputText" rows="10" cols="50"></textarea>
+    <button onclick="checkText()">Проверить</button>
+    <pre id="result"></pre>
+
+    <script>
+        async function checkText() {
+            const text = document.getElementById("inputText").value;
+            const linter = new textlint.TextLintCore();
+            linter.setupRules({
+                "preset-google": require("textlint-rule-preset-google")
+            });
+            const results = await linter.lintText(text);
+            document.getElementById("result").textContent = JSON.stringify(results.messages, null, 2);
+        }
+    </script>
+</body>
+</html>
+Теперь, когда пользователь вводит текст, TextLint анализирует его и показывает ошибки.
+
+4. Интеграция с сервером (если есть)
+Если сайт использует Node.js + Express, можно добавить обработку текстов на сервере:
+
+js
+Копировать
+Редактировать
+const express = require("express");
+const { TextLintEngine } = require("textlint");
+const app = express();
+
+app.use(express.json());
+
+app.post("/check", async (req, res) => {
+    const { text } = req.body;
+    const engine = new TextLintEngine({ preset: "preset-google" });
+    const results = await engine.executeOnText(text);
+    res.json(results);
+});
+
+app.listen(3000, () => console.log("Сервер запущен на порту 3000"));
+Теперь сайт может отправлять текст на сервер, а он будет проверять его.
+
+Что дальше?
+Можно добавить кастомные правила для проверки текста по твоим требованиям.
+
+Можно настроить автоисправление ошибок.
+
+Можно использовать TextLint в браузере, чтобы избежать запроса к серверу.
