@@ -4,6 +4,7 @@ import Home from "@/pages/Home";
 import Analysis from "@/pages/Analysis";
 import Formatting from "@/pages/Formatting";
 import About from "@/pages/About";
+import TextCheck from "@/pages/TextCheck";
 import NotFound from "@/pages/not-found";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
@@ -18,6 +19,7 @@ function Router() {
           <Route path="/analysis" component={Analysis} />
           <Route path="/formatting" component={Formatting} />
           <Route path="/about" component={About} />
+          <Route path="/text-check" component={TextCheck} />
           <Route component={NotFound} />
         </Switch>
       </main>
