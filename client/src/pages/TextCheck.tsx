@@ -126,7 +126,7 @@ export default function TextCheck() {
               size="lg"
               className="bg-primary-600 hover:bg-primary-700 text-white font-medium px-8 py-2 shadow-neomorphic-sm hover:shadow-neomorphic-md transition-all duration-300"
             >
-              {loading ? "Проверка..." : "Проверить текст"}
+              {loading ? "Проверка..." : "Начать проверку"}
             </Button>
           </div>
         </Card>
