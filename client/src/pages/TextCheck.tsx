@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { apiRequest } from "@/lib/queryClient";
 import { motion } from "framer-motion";
+import { useToast } from "@/hooks/use-toast";
 
 // Типы результатов анализа ошибок
 interface AnalysisResult {
@@ -26,11 +27,17 @@ export default function TextCheck() {
   const [results, setResults] = useState<DocumentAnalysisResults | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
 
   // Функция для прямой проверки текста
   const checkText = async () => {
     if (!text.trim()) {
       setError("Пожалуйста, введите текст для проверки");
+      toast({
+        title: "Пустой текст",
+        description: "Пожалуйста, введите текст для проверки",
+        variant: "destructive"
+      });
       return;
     }
 
@@ -63,9 +70,19 @@ export default function TextCheck() {
       
       const analysisResults = await analysisResponse.json();
       setResults(analysisResults);
+      toast({
+        title: "Анализ завершен",
+        description: "Текст успешно проанализирован",
+        variant: "default"
+      });
     } catch (err) {
       console.error("Error checking text:", err);
       setError("Ошибка при проверке текста. Пожалуйста, попробуйте еще раз.");
+      toast({
+        title: "Ошибка",
+        description: "Проблема при анализе текста. Пожалуйста, попробуйте снова.",
+        variant: "destructive"
+      });
     } finally {
       setLoading(false);
     }
@@ -99,14 +116,15 @@ export default function TextCheck() {
             value={text}
             onChange={(e) => setText(e.target.value)}
             placeholder="Вставьте текст для проверки..."
-            className="min-h-32 mb-4 border-slate-200 focus:border-primary-300 focus:ring-primary-300"
+            className="min-h-40 mb-6 border-slate-200 focus:border-primary-300 focus:ring-primary-300 shadow-inner text-base p-4 font-medium leading-relaxed"
           />
           
           <div className="flex justify-center">
             <Button 
               onClick={checkText} 
               disabled={loading}
-              className="bg-primary-600 hover:bg-primary-700 text-white"
+              size="lg"
+              className="bg-primary-600 hover:bg-primary-700 text-white font-medium px-8 py-2 shadow-neomorphic-sm hover:shadow-neomorphic-md transition-all duration-300"
             >
               {loading ? "Проверка..." : "Проверить текст"}
             </Button>
