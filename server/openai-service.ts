@@ -274,28 +274,82 @@ export async function improveText(originalText: string, analysisResults: Documen
     (a, b) => b.original.length - a.original.length
   );
   
+  // Отладочная информация для каждого исправления
+  console.log(`Текст для исправлений (${sortedImprovements.length} ошибок):`);
+  console.log(originalText.substring(0, 100) + "...");
+  
+  // Подсчет успешных замен
+  let successCount = 0;
+  
   // For each improvement, replace all occurrences
   for (const imp of sortedImprovements) {
-    // Create a RegExp that matches the exact string (with word boundaries if possible)
+    console.log(`Попытка замены: "${imp.original}" -> "${imp.improved}"`);
+    
+    // Сначала попробуем прямую замену строк для точного совпадения
+    if (improvedText.includes(imp.original)) {
+      const beforeReplace = improvedText;
+      improvedText = improvedText.split(imp.original).join(imp.improved);
+      
+      // Проверка успешности замены
+      if (beforeReplace !== improvedText) {
+        successCount++;
+        console.log(`✓ Успешно заменено прямым методом: "${imp.original}"`);
+        continue; // Переходим к следующему исправлению
+      }
+    }
+    
+    // Если прямая замена не сработала, пробуем через регулярные выражения
     try {
-      // Only add word boundaries if the string doesn't start/end with punctuation
+      // Проверяем начало и конец строки для добавления границ слов
       const startsWithWord = /^\w/.test(imp.original);
       const endsWithWord = /\w$/.test(imp.original);
       
+      // Сохраняем версию текста до замены для проверки
+      const beforeReplace = improvedText;
+      
       if (startsWithWord && endsWithWord) {
-        // Can use word boundaries
+        // Добавляем границы слов если они уместны
         const regex = new RegExp(`\\b${escapeRegExp(imp.original)}\\b`, 'g');
         improvedText = improvedText.replace(regex, imp.improved);
+      } else if (startsWithWord) {
+        // Только левая граница
+        const regex = new RegExp(`\\b${escapeRegExp(imp.original)}`, 'g');
+        improvedText = improvedText.replace(regex, imp.improved);
+      } else if (endsWithWord) {
+        // Только правая граница
+        const regex = new RegExp(`${escapeRegExp(imp.original)}\\b`, 'g');
+        improvedText = improvedText.replace(regex, imp.improved);
       } else {
-        // Simple string replacement as fallback
-        improvedText = improvedText.replace(new RegExp(escapeRegExp(imp.original), 'g'), imp.improved);
+        // Без границ слов
+        const regex = new RegExp(escapeRegExp(imp.original), 'g');
+        improvedText = improvedText.replace(regex, imp.improved);
+      }
+      
+      // Проверка успешности замены
+      if (beforeReplace !== improvedText) {
+        successCount++;
+        console.log(`✓ Успешно заменено через regex: "${imp.original}"`);
+      } else {
+        console.log(`✗ Не удалось заменить: "${imp.original}" (не найдено совпадений)`);
       }
     } catch (e) {
-      // If regex fails, fall back to simple replacement
-      console.log(`Failed to create regex for: "${imp.original}"`, e);
+      // Если regex не сработал, используем простую замену
+      console.log(`! Ошибка regex для: "${imp.original}"`, e);
+      
+      const beforeReplace = improvedText;
       improvedText = improvedText.replace(imp.original, imp.improved);
+      
+      // Проверка успешности замены
+      if (beforeReplace !== improvedText) {
+        successCount++;
+        console.log(`✓ Успешно заменено fallback-методом: "${imp.original}"`);
+      } else {
+        console.log(`✗ Не удалось заменить: "${imp.original}" (fallback тоже не сработал)`);
+      }
     }
   }
+  
+  console.log(`Итого исправлено: ${successCount} из ${sortedImprovements.length} ошибок`);
   
   // Проверяем, что текст действительно изменился
   const hasChanges = improvedText !== originalText;
