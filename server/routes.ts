@@ -4,7 +4,7 @@ import { storage } from "./storage";
 import * as multerDefault from "multer";
 const multer = multerDefault.default || multerDefault;
 import { processDocument, extractTextFromFile } from "./file-processor";
-import { analyzeText, improveText, formatAccordingToGost } from "./openai-service";
+import { analyzeText, improveText, formatAccordingToGost, analyzeDocumentStructure } from "./openai-service";
 import { z } from "zod";
 import { insertDocumentSchema } from "@shared/schema";
 import fs from "fs";
