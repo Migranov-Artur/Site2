@@ -37,8 +37,19 @@ export default function Analysis() {
     setDocumentId(id);
   };
 
-  const handleProcessingComplete = (result: DocumentAnalysisResults) => {
-    setAnalysisResults(result);
+  const handleProcessingComplete = (result: any) => {
+    // Проверяем, что результаты содержат данные анализа
+    if (result.results) {
+      console.log("Получены результаты анализа:", result.results);
+      setAnalysisResults(result.results);
+    } else {
+      console.error("Результаты анализа не найдены в ответе:", result);
+      toast({
+        title: "Внимание",
+        description: "Результаты анализа отсутствуют или в неправильном формате",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleApplyChanges = () => {
