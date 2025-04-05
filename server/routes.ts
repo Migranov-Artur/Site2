@@ -157,16 +157,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Process text based on selected options
       let analysisResults = null;
+      let structureAnalysis = null;
+      let processedText = document.originalText;
       
-      if (options.analyze || options.grammar) {
-        // Analyze text using OpenAI
+      if (options.analyze) {
+        console.log("Analyzing document structure and content...");
+        
+        // Анализируем структуру документа
+        structureAnalysis = await analyzeDocumentStructure(document.originalText);
+        
+        // Анализируем контент с OpenAI, LanguageTool и TextLint
         analysisResults = await analyzeText(document.originalText);
         
-        // Save analysis results to document
+        // Добавляем результаты анализа структуры, если они есть
+        if (structureAnalysis && structureAnalysis.recommendedChanges) {
+          analysisResults = analysisResults || { grammar: [], style: [], structure: [], summary: "" };
+          
+          // Добавляем рекомендации по структуре в соответствующую категорию
+          structureAnalysis.recommendedChanges.forEach(change => {
+            analysisResults.structure.push({
+              original: "Структура документа",
+              improved: change.description,
+              explanation: change.description,
+              severity: change.importance
+            });
+          });
+        }
+        
+        // Сохраняем результаты анализа в документ
         await storage.updateDocumentAnalysis(documentId, analysisResults);
+        
+        // Если указано, применяем исправления грамматики
+        if (options.grammar && analysisResults) {
+          console.log("Applying grammar and style improvements...");
+          processedText = await improveText(document.originalText, analysisResults);
+          await storage.updateDocumentText(documentId, processedText);
+        }
       }
-
-      return res.json(analysisResults);
+      
+      // Если указано, форматируем документ
+      if (options.format) {
+        console.log("Formatting document according to GOST...");
+        
+        // Стандартные параметры форматирования
+        const formattingOptions = {
+          options: {
+            fontFamily: "Times New Roman",
+            fontSize: 14,
+            lineSpacing: 1.5,
+            paragraphIndent: 1.25,
+            textAlignment: "justify",
+            pageMargins: {
+              top: 2,
+              right: 1.5,
+              bottom: 2,
+              left: 3
+            }
+          },
+          presetName: "ГОСТ 7.32-2017"
+        };
+        
+        // Сохраняем параметры форматирования
+        await storage.updateDocumentFormatting(documentId, formattingOptions);
+        
+        // Форматируем текст
+        processedText = await formatAccordingToGost(
+          processedText, // Используем уже обработанный текст, если он есть
+          formattingOptions.presetName,
+          formattingOptions.options
+        );
+        
+        // Сохраняем отформатированный текст
+        await storage.updateDocumentText(documentId, processedText);
+      }
+      
+      // Получаем обновленный документ со всеми изменениями
+      const updatedDocument = await storage.getDocument(documentId);
+      
+      return res.json({
+        document: updatedDocument,
+        results: updatedDocument?.analysisResults,
+        structure: structureAnalysis?.sections || []
+      });
     } catch (error) {
       console.error("Error processing document:", error);
       return res.status(500).json({ error: error instanceof Error ? error.message : "Ошибка при обработке документа" });
@@ -271,11 +343,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         presetName 
       });
 
-      // Apply formatting using OpenAI or other service
-      // In a real implementation, this would actually format the document
-      // For now, we'll just return success
-
-      return res.json({ success: true });
+      // Apply formatting to the document text
+      if (!document.originalText) {
+        return res.status(400).json({ error: "Документ не содержит текста для форматирования" });
+      }
+      
+      try {
+        // Форматируем текст, используя выбранный шаблон и опции
+        const formattedText = await formatAccordingToGost(
+          document.originalText, 
+          presetName, 
+          formatOptions
+        );
+        
+        // Сохраняем отформатированный текст в документе
+        await storage.updateDocumentText(documentId, formattedText);
+        
+        return res.json({ success: true });
+      } catch (formattingError) {
+        console.error("Ошибка при форматировании документа:", formattingError);
+        return res.status(500).json({ error: "Ошибка при форматировании документа" });
+      }
     } catch (error) {
       console.error("Error formatting document:", error);
       return res.status(500).json({ error: error instanceof Error ? error.message : "Ошибка при форматировании документа" });
@@ -332,6 +420,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const format = req.query.format as string || 'docx';
 
       if (format === 'html') {
+        // Получаем параметры форматирования с приведением типа к any для избежания ошибок TypeScript
+        const formatOptions = document.formattingOptions?.options || {} as any;
+        
+        // Устанавливаем значения по умолчанию
+        const fontFamily = formatOptions.fontFamily || 'Times New Roman';
+        const fontSize = formatOptions.fontSize || 14;
+        const lineSpacing = formatOptions.lineSpacing || 1.5;
+        const paragraphIndent = formatOptions.paragraphIndent || 1.25;
+        const textAlignment = formatOptions.textAlignment || 'justify';
+        
+        // Получаем поля страницы
+        const margins = formatOptions.pageMargins || { top: 2, right: 1.5, bottom: 2, left: 3 };
+        
         // Generate HTML version of the document
         let htmlContent = `<!DOCTYPE html>
 <html lang="ru">
@@ -341,26 +442,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     <title>${document.fileName}</title>
     <style>
         body {
-            font-family: 'Times New Roman', Times, serif;
-            font-size: 14pt;
-            line-height: 1.5;
-            margin: 2cm;
+            font-family: '${fontFamily}', Times, serif;
+            font-size: ${fontSize}pt;
+            line-height: ${lineSpacing};
+            margin: ${margins.top}cm ${margins.right}cm ${margins.bottom}cm ${margins.left}cm;
         }
         h1, h2, h3 {
             font-weight: bold;
         }
         h1 {
-            font-size: 16pt;
+            font-size: ${fontSize + 2}pt;
             text-align: center;
         }
         h2 {
-            font-size: 14pt;
+            font-size: ${fontSize}pt;
             margin-top: 1.5em;
         }
         p {
-            text-indent: 1.25cm;
+            text-indent: ${paragraphIndent}cm;
             margin-bottom: 0.5em;
-            text-align: justify;
+            text-align: ${textAlignment};
         }
         .page-break {
             page-break-after: always;
@@ -368,13 +469,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         @media print {
             body {
                 margin: 0;
-                padding: 2cm;
+                padding: ${margins.top}cm ${margins.right}cm ${margins.bottom}cm ${margins.left}cm;
             }
         }
     </style>
 </head>
 <body>
-    ${text.split('\n').map(line => `<p>${line}</p>`).join('\n')}
+    ${text.split('\n\n').map(paragraph => {
+      if (!paragraph.trim()) return '';
+      return `<p>${paragraph.trim()}</p>`;
+    }).join('\n')}
 </body>
 </html>`;
         

@@ -45,6 +45,8 @@ const formSchema = z.object({
       alignment: z.string(),
     }),
   }),
+  paragraphIndent: z.number().optional(),
+  textAlignment: z.string().optional(),
 });
 
 const presetGostOptions = {
@@ -65,7 +67,7 @@ const presetGostOptions = {
     fontFamily: "Times New Roman",
     fontSize: 14,
     lineSpacing: 1.5,
-    pageMargins: { top: 2, right: 1, bottom: 2, left: 3 },
+    pageMargins: { top: 2, right: 1.5, bottom: 2, left: 3 },
     citationStyle: "gost-2003",
     headingStyles: {
       level1: { fontSize: 16, fontWeight: "bold", alignment: "center" },
@@ -83,6 +85,20 @@ const presetGostOptions = {
       level1: { fontSize: 16, fontWeight: "bold", alignment: "center" },
       level2: { fontSize: 15, fontWeight: "bold", alignment: "left" },
     },
+  },
+  "standard-report": {
+    name: "Стандартный отчет",
+    fontFamily: "Times New Roman",
+    fontSize: 14,
+    lineSpacing: 1.5,
+    pageMargins: { top: 2.0, right: 1.5, bottom: 2.0, left: 3.0 }, // В сантиметрах!
+    citationStyle: "gost-2008",
+    headingStyles: {
+      level1: { fontSize: 16, fontWeight: "bold", alignment: "center" },
+      level2: { fontSize: 14, fontWeight: "bold", alignment: "left" },
+    },
+    paragraphIndent: 1.25, // Отступ первой строки абзаца 1.25 см
+    textAlignment: "justify", // Выравнивание по ширине
   },
   "custom": {
     name: "Пользовательские настройки",
@@ -192,6 +208,7 @@ export default function FormatSettings({ documentId, onFormatApplied }: FormatSe
                         <SelectItem value="gost-2008">ГОСТ 7.32-2017</SelectItem>
                         <SelectItem value="gost-2003">ГОСТ 7.32-2001</SelectItem>
                         <SelectItem value="gost-r-7-0-5">ГОСТ Р 7.0.5-2008</SelectItem>
+                        <SelectItem value="standard-report">Стандартный отчет</SelectItem>
                         <SelectItem value="custom">Пользовательские настройки</SelectItem>
                       </SelectContent>
                     </Select>
