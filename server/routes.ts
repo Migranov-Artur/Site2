@@ -7,6 +7,7 @@ import { processDocument, extractTextFromFile } from "./file-processor";
 import { analyzeText, improveText, formatAccordingToGost, analyzeDocumentStructure } from "./openai-service";
 import { z } from "zod";
 import { insertDocumentSchema } from "@shared/schema";
+import { DocumentAnalysisResults, FormatOptions } from "@shared/schema";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -156,8 +157,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const options = optionsSchema.parse(req.body);
 
       // Process text based on selected options
-      let analysisResults = null;
-      let structureAnalysis = null;
+      let analysisResults: DocumentAnalysisResults | null = null;
+      let structureAnalysis: any = null;
       let processedText = document.originalText;
       
       if (options.analyze) {
@@ -174,13 +175,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           analysisResults = analysisResults || { grammar: [], style: [], structure: [], summary: "" };
           
           // Добавляем рекомендации по структуре в соответствующую категорию
-          structureAnalysis.recommendedChanges.forEach(change => {
-            analysisResults.structure.push({
-              original: "Структура документа",
-              improved: change.description,
-              explanation: change.description,
-              severity: change.importance
-            });
+          structureAnalysis.recommendedChanges.forEach((change: {description: string, importance: "low" | "medium" | "high"}) => {
+            if (analysisResults) {
+              analysisResults.structure.push({
+                original: "Структура документа",
+                improved: change.description,
+                explanation: change.description,
+                severity: change.importance
+              });
+            }
           });
         }
         
@@ -212,6 +215,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
               right: 1.5,
               bottom: 2,
               left: 3
+            },
+            citationStyle: "ГОСТ Р 7.0.5-2008",
+            headingStyles: {
+              level1: {
+                fontSize: 16,
+                fontWeight: "bold",
+                alignment: "center"
+              },
+              level2: {
+                fontSize: 14,
+                fontWeight: "bold",
+                alignment: "left"
+              }
             }
           },
           presetName: "ГОСТ 7.32-2017"

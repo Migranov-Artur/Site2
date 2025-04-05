@@ -199,7 +199,7 @@ export default function AnalysisResults({
 
             {/* Grammar content */}
             <TabsContent value="grammar" className="space-y-4">
-              {results.grammar.length > 0 ? (
+              {results?.grammar?.length > 0 ? (
                 results.grammar.map((item, index) => {
                   const styles = getSeverityStyles(item.severity);
                   return (
@@ -225,7 +225,7 @@ export default function AnalysisResults({
 
             {/* Style content */}
             <TabsContent value="style" className="space-y-4">
-              {results.style.length > 0 ? (
+              {results?.style?.length > 0 ? (
                 results.style.map((item, index) => {
                   const styles = getSeverityStyles(item.severity);
                   return (
@@ -251,7 +251,7 @@ export default function AnalysisResults({
 
             {/* Structure content */}
             <TabsContent value="structure" className="space-y-4">
-              {results.structure.length > 0 ? (
+              {results?.structure?.length > 0 ? (
                 results.structure.map((item, index) => {
                   const styles = getSeverityStyles(item.severity);
                   return (
