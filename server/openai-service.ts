@@ -443,14 +443,116 @@ function extractWords(text: string): string[] {
  * Применяет базовое форматирование по стандартам ГОСТ без использования OpenAI API
  * для повышения производительности и надежности.
  */
-export async function formatAccordingToGost(text: string, gostType: string): Promise<string> {
-  console.log(`Applying basic GOST formatting (${gostType})`);
+/**
+ * Функция для форматирования текста в соответствии с ГОСТом и пользовательскими настройками
+ * 
+ * @param text Исходный текст для форматирования
+ * @param gostType Тип стандарта для форматирования
+ * @param formatOptions Опции форматирования (если есть)
+ * @returns Отформатированный текст
+ */
+export async function formatAccordingToGost(text: string, gostType: string, formatOptions?: any): Promise<string> {
+  console.log(`Applying GOST formatting (${gostType})`, formatOptions);
+  
+  // Применяем параметры форматирования к заголовку
+  let formattedHeader = `Отформатировано по стандарту ${gostType}\n\n`;
+  
+  // Если доступен OpenAI API и текст достаточно большой, 
+  // используем его для более интеллектуального форматирования
+  if (openai && text.length > 200) {
+    try {
+      console.log("Using OpenAI to enhance GOST formatting");
+      
+      // Извлекаем параметры форматирования для использования в промпте
+      const fontFamily = formatOptions?.fontFamily || "Times New Roman";
+      const fontSize = formatOptions?.fontSize || 14;
+      const lineSpacing = formatOptions?.lineSpacing || 1.5;
+      const paragraphIndent = formatOptions?.paragraphIndent || 1.25;
+      const textAlignment = formatOptions?.textAlignment || "justify";
+      
+      // Поля страницы
+      const margins = formatOptions?.pageMargins || { 
+        top: 2, 
+        right: 1.5, 
+        bottom: 2, 
+        left: 3 
+      };
+      
+      // Создаем промпт для OpenAI с параметрами форматирования
+      const formatPrompt = `
+        Отформатируй следующий текст согласно стандарту ГОСТ 7.32-2017, 
+        с учетом указанных параметров форматирования:
+        
+        - Шрифт: ${fontFamily}
+        - Размер шрифта: ${fontSize} пт
+        - Межстрочный интервал: ${lineSpacing}
+        - Отступ первой строки абзаца: ${paragraphIndent} см
+        - Выравнивание текста: ${textAlignment === "justify" ? "по ширине" : 
+                                textAlignment === "center" ? "по центру" : 
+                                textAlignment === "right" ? "по правому краю" : "по левому краю"}
+        - Поля: верхнее ${margins.top} см, правое ${margins.right} см, 
+                нижнее ${margins.bottom} см, левое ${margins.left} см
+        
+        Инструкции по форматированию:
+        1. Разбей текст на абзацы, если это необходимо
+        2. Исправь пунктуацию и пробелы между словами
+        3. Форматируй заголовки согласно уровню (если они есть)
+        4. Не добавляй никакого нового содержания - только форматируй существующий текст
+        5. Убедись, что каждый абзац начинается с отступа
+        6. Преобразуй дефисы в тире там, где это необходимо по правилам русского языка
+        7. При необходимости, добавь структурные элементы (заголовки, главы и т.д.)
+        
+        Исходный текст:
+        ${text.substring(0, 4000)}
+      `;
+      
+      // Делаем запрос к OpenAI
+      const response = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [{ role: "user", content: formatPrompt }],
+      });
+      
+      // Получаем результат
+      const formattedText = response.choices[0].message.content || text;
+      
+      // Проверяем, что OpenAI действительно изменил текст
+      if (formattedText !== text && formattedText.length > 50) {
+        console.log("Successfully formatted text with OpenAI");
+        return formattedText;
+      } else {
+        console.log("OpenAI formatting did not produce significant changes, falling back to basic formatting");
+      }
+    } catch (error) {
+      console.error("Error formatting with OpenAI:", error);
+      console.log("Falling back to basic formatting");
+    }
+  }
+  
+  // Если OpenAI недоступен или возникла ошибка, используем базовое форматирование
   
   // Добавляем стандартный заголовок
-  let formatted = `Отформатировано по стандарту ${gostType}\n\n`;
+  let formatted = formattedHeader;
   
   // Разбиваем текст на абзацы
   const paragraphs = text.split(/\n\s*\n/);
+  
+  // Применяем параметры форматирования
+  let paragraphIndent = "";
+  let textAlignment = "";
+  
+  if (formatOptions) {
+    // Получаем отступ абзаца
+    if (formatOptions.paragraphIndent) {
+      paragraphIndent = " ".repeat(formatOptions.paragraphIndent * 4);
+      console.log(`Using paragraph indent: ${formatOptions.paragraphIndent} cm (${paragraphIndent.length} spaces)`);
+    }
+    
+    // Получаем выравнивание текста
+    if (formatOptions.textAlignment) {
+      textAlignment = formatOptions.textAlignment;
+      console.log(`Using text alignment: ${textAlignment}`);
+    }
+  }
   
   // Обрабатываем каждый абзац
   for (let i = 0; i < paragraphs.length; i++) {
@@ -469,8 +571,19 @@ export async function formatAccordingToGost(text: string, gostType: string): Pro
       .replace(/(\s)-(\s)/g, '$1—$2')
       .trim();
     
-    // Добавляем абзац с отступом
-    formatted += formattedParagraph + '\n\n';
+    // Добавляем абзац с отступом (если указан)
+    if (paragraphIndent) {
+      formattedParagraph = paragraphIndent + formattedParagraph;
+    }
+    
+    // Применяем выравнивание если указано
+    if (textAlignment === "justify") {
+      // В текстовом виде мы не можем реально выровнять по ширине, 
+      // но отметим это для экспорта в Word
+      formatted += formattedParagraph + '\n\n';
+    } else {
+      formatted += formattedParagraph + '\n\n';
+    }
   }
   
   // Проверяем, что текст действительно изменился
@@ -478,4 +591,94 @@ export async function formatAccordingToGost(text: string, gostType: string): Pro
   console.log(`GOST formatting completed: original length ${text.length}, formatted length ${formatted.length}, changes applied: ${hasChanges}`);
   
   return formatted.trim();
+}
+
+/**
+ * Функция для анализа структуры документа с использованием OpenAI
+ * Определяет основные элементы: введение, главы, списки, заключение и т.д.
+ * 
+ * @param text Текст документа для анализа
+ * @returns Объект с информацией о структуре документа
+ */
+export async function analyzeDocumentStructure(text: string): Promise<any> {
+  // Если OpenAI недоступен, возвращаем базовую структуру
+  if (!openai) {
+    console.log("OpenAI API key not found, returning basic document structure");
+    return {
+      sections: [
+        { type: "introduction", title: "Введение", startPosition: 0 },
+        { type: "body", title: "Основная часть", startPosition: text.indexOf('\n\n') + 2 || 0 },
+        { type: "conclusion", title: "Заключение", startPosition: text.lastIndexOf('\n\n') + 2 || text.length - 100 }
+      ],
+      recommendedChanges: []
+    };
+  }
+  
+  try {
+    console.log("Analyzing document structure with OpenAI...");
+    
+    const prompt = `
+      Проанализируй структуру следующего академического документа на русском языке.
+      Определи основные структурные элементы:
+      
+      1. Введение
+      2. Главы/разделы и их заголовки
+      3. Подразделы и их заголовки
+      4. Списки
+      5. Таблицы (если упоминаются)
+      6. Рисунки (если упоминаются)
+      7. Заключение
+      8. Библиография/список литературы (если есть)
+      9. Приложения (если есть)
+      
+      Также проанализируй:
+      - Какие разделы/подразделы отсутствуют
+      - Нет ли дисбаланса в размерах разделов
+      - Соблюдается ли логическая структура
+      
+      Ответ должен быть в формате JSON со следующей структурой:
+      {
+        "sections": [
+          {
+            "type": "introduction|chapter|subchapter|list|table|figure|conclusion|bibliography|appendix",
+            "title": "название раздела, если есть",
+            "startPosition": примерная_позиция_в_тексте
+          }
+        ],
+        "recommendedChanges": [
+          {
+            "description": "описание рекомендуемого изменения",
+            "importance": "low|medium|high"
+          }
+        ]
+      }
+      
+      Текст для анализа:
+      ${text.substring(0, 4000)}
+    `;
+
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [{ role: "user", content: prompt }],
+      response_format: { type: "json_object" },
+    });
+    
+    const content = response.choices[0].message.content || '{"sections":[],"recommendedChanges":[]}';
+    const result = JSON.parse(content);
+    
+    console.log("Document structure analysis completed");
+    return result;
+  } catch (error) {
+    console.error("Error analyzing document structure:", error);
+    
+    // В случае ошибки возвращаем базовую структуру
+    return {
+      sections: [
+        { type: "introduction", title: "Введение", startPosition: 0 },
+        { type: "body", title: "Основная часть", startPosition: text.indexOf('\n\n') + 2 || 0 },
+        { type: "conclusion", title: "Заключение", startPosition: text.lastIndexOf('\n\n') + 2 || text.length - 100 }
+      ],
+      recommendedChanges: []
+    };
+  }
 }

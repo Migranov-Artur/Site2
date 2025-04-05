@@ -104,37 +104,118 @@ async function extractTextFromDoc(buffer: Buffer): Promise<string> {
  * In a real implementation, this would apply GOST formatting
  * and return a properly formatted document
  */
+/**
+ * Создает DOCX документ с форматированием по ГОСТ
+ *
+ * @param text Текст документа
+ * @param formattingOptions Опции форматирования (если есть)
+ * @returns Буфер с документом DOCX
+ */
 export async function processDocument(
   text: string,
   formattingOptions?: any
 ): Promise<Buffer> {
   try {
-    // This is a simplified implementation
-    // In a real app, you would use a proper document generation library
-    // like docx or pdfkit to create a formatted document
-    
-    // For now, we'll just create a minimal DOCX file with the text
     const docxjs = await import("docx");
     
-    // Create a new document
+    console.log("Форматирование документа с опциями:", formattingOptions);
+    
+    // Параметры форматирования со значениями по умолчанию
+    const fontFamily = formattingOptions?.options?.fontFamily || "Times New Roman";
+    const fontSize = (formattingOptions?.options?.fontSize || 14) * 2; // В docx размер в половинных пунктах
+    const lineSpacing = formattingOptions?.options?.lineSpacing || 1.5;
+    const paragraphIndent = formattingOptions?.options?.paragraphIndent || 1.25;
+    const textAlignment = formattingOptions?.options?.textAlignment || "justify";
+    
+    // Преобразуем текстовое выравнивание в константу docx
+    let alignment: any = docxjs.AlignmentType.LEFT;
+    if (textAlignment === "justify") {
+      alignment = docxjs.AlignmentType.JUSTIFIED;
+    } else if (textAlignment === "center") {
+      alignment = docxjs.AlignmentType.CENTER;
+    } else if (textAlignment === "right") {
+      alignment = docxjs.AlignmentType.RIGHT;
+    }
+    
+    // Поля страницы в дюймах (конвертируем из см)
+    // Используем явное приведение типов, чтобы предотвратить ошибки TypeScript
+    const topMargin = `${((formattingOptions?.options?.pageMargins?.top || 2) * 0.3937)}in`;
+    const rightMargin = `${((formattingOptions?.options?.pageMargins?.right || 1.5) * 0.3937)}in`;
+    const bottomMargin = `${((formattingOptions?.options?.pageMargins?.bottom || 2) * 0.3937)}in`;
+    const leftMargin = `${((formattingOptions?.options?.pageMargins?.left || 3) * 0.3937)}in`;
+    
+    const pageMargins: any = {
+      top: topMargin,
+      right: rightMargin,
+      bottom: bottomMargin,
+      left: leftMargin,
+    };
+    
+    console.log("Применяемые параметры форматирования:", {
+      fontFamily,
+      fontSize,
+      lineSpacing,
+      paragraphIndent,
+      textAlignment,
+      pageMargins
+    });
+    
+    // Разбиваем текст на абзацы
+    const paragraphs = text.split(/\n\s*\n/);
+    const paragraphElements = paragraphs.map(para => {
+      if (!para.trim()) return null;
+      
+      return new docxjs.Paragraph({
+        children: [
+          new docxjs.TextRun({
+            text: para.trim(),
+            font: fontFamily,
+            size: fontSize
+          }),
+        ],
+        alignment: alignment,
+        spacing: {
+          line: Math.round(lineSpacing * 240), // Межстрочный интервал (240 = одинарный)
+          before: 0,
+          after: 0
+        },
+        indent: {
+          firstLine: docxjs.convertMillimetersToTwip(paragraphIndent * 10) // Преобразуем см в мм и затем в twip
+        }
+      });
+    }).filter(p => p !== null);
+    
+    // Создаем документ
     const doc = new docxjs.Document({
+      styles: {
+        default: {
+          document: {
+            run: {
+              font: fontFamily,
+              size: fontSize
+            },
+            paragraph: {
+              spacing: { line: Math.round(lineSpacing * 240) }
+            }
+          }
+        }
+      },
       sections: [
         {
-          properties: {},
-          children: [
-            new docxjs.Paragraph({
-              children: [
-                new docxjs.TextRun(text),
-              ],
-            }),
-          ],
+          properties: {
+            page: {
+              margin: pageMargins
+            }
+          },
+          children: paragraphElements,
         },
       ],
     });
     
-    // Generate buffer
+    // Генерируем буфер
     const buffer = await docxjs.Packer.toBuffer(doc);
     
+    console.log("Документ успешно сгенерирован");
     return buffer;
   } catch (error) {
     console.error("Error processing document:", error);
